@@ -5,7 +5,11 @@ from pyglet import shapes
 from pyglet.window import mouse
 from recognizer import OneDollarRecognizer
 
+SUBJECT = "1"
 TRAINING_MODE = False
+TEMPLATES_PATH = "templates"
+RESAMPLE_POINTS = 64
+BB_SIZE = 250
 
 window = pyglet.window.Window(800, 600, "Gesture Recognizer")
 status_label = pyglet.text.Label("Statuslabel", font_size=16, x=10, y=window.height - 30)
@@ -16,7 +20,7 @@ template_name = ""
 template_name_input_label = pyglet.text.Label("Template name:", font_size=16, x=10, y=window.height - 60)
 enough_points = False
 
-recognizer = OneDollarRecognizer(bb_size=250, resample_points=64)
+recognizer = OneDollarRecognizer(bb_size=BB_SIZE, resample_points=RESAMPLE_POINTS, templates_path=TEMPLATES_PATH, subject=SUBJECT)
 
 
 @window.event
@@ -78,6 +82,7 @@ def on_key_press(symbol, modifiers):
             if enough_points:
                 if template_name:
                     recognizer.add_template(template_name, list(points))
+                    recognizer.save_templates_to_xml(TEMPLATES_PATH)
                     status_label.text = f"Template für '{template_name}' gespeichert"
                     reset()
                 else: status_label.text = "Zuerst Template Name eingeben!"

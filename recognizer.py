@@ -1,12 +1,14 @@
 # $1 gesture recognizer 
-import math
+import math, os
+import xml.etree.ElementTree as ET
+from datetime import datetime
 
 PHI = 0.5 * (-1.0 + math.sqrt(5.0))
 
 
 class OneDollarRecognizer:
 
-    def __init__(self, bb_size, resample_points):
+    def __init__(self, bb_size, resample_points, templates_path, subject):
         self.size = bb_size
         self.n = resample_points
         self.origin = (0, 0)
@@ -14,6 +16,9 @@ class OneDollarRecognizer:
         self.min_angle = math.radians(-45)
         self.max_angle = math.radians(45)
         self.angle_precision = math.radians(2)
+        self.subject = subject
+
+        self.load_templates_from_xml(templates_path)
 
 
     def add_template(self, name, points):
@@ -50,35 +55,41 @@ class OneDollarRecognizer:
 
 
     def resample(self, points, n):
-        I = self.path_length(points) / (n - 1)
+        path_len = self.path_length(points)
+        if path_len == 0:
+            print("WARNUNG: Pfadlänge = 0 – Punkte vermutlich identisch.")
+            return [points[0]] * n
+
+        I = path_len / (n - 1)
         D = 0.0
         new_points = [points[0]]
+        curr_point = points[0]
+
         i = 1
-        
         while i < len(points):
-            d = self.distance(points[i - 1], points[i])
+            next_point = points[i]
+            d = self.distance(curr_point, next_point)
+
+            if d == 0.0:
+                i += 1
+                continue
+
             if D + d >= I:
                 t = (I - D) / d
-                qx = points[i - 1][0] + t * (points[i][0] - points[i - 1][0])
-                qy = points[i - 1][1] + t * (points[i][1] - points[i - 1][1])
+                qx = curr_point[0] + t * (next_point[0] - curr_point[0])
+                qy = curr_point[1] + t * (next_point[1] - curr_point[1])
                 q = (qx, qy)
                 new_points.append(q)
-                points.insert(i, q)
+                curr_point = q
                 D = 0.0
             else:
                 D += d
+                curr_point = next_point
                 i += 1
 
-        if len(new_points) < n:
+        while len(new_points) < n:
             new_points.append(points[-1])
 
-        if len(new_points) < n:
-            while len(new_points) < n:
-                new_points.append(points[-1])
-        elif len(new_points) > n:
-            new_points = new_points[:n]
-        
-        print(len(new_points))
         return new_points
     
 
@@ -177,3 +188,72 @@ class OneDollarRecognizer:
 
     def distance(self, p1, p2):
         return math.hypot(p2[0] - p1[0], p2[1] - p1[1])
+
+
+# XML EXPORT UND IMPORT VON TEMPLATES ####################################################
+   
+    def save_templates_to_xml(self, directory):
+        os.makedirs(directory, exist_ok=True)
+        name_counts = {}
+
+        for name, points in self.templates:
+            count = name_counts.get(name, 0) + 1
+            name_counts[name] = count
+            number_str = f"{count:02}"
+            filename = f"{name}{number_str}.xml"
+            path = os.path.join(directory, filename)
+
+            gesture = ET.Element("Gesture", {
+                "Name": name,
+                "Subject": self.subject,
+                "Speed": "unknown",
+                "Number": str(count),
+                "NumPts": str(len(points)),
+                "Milliseconds": "0",
+                "AppName": "GestureRecognizer",
+                "AppVer": "1.0",
+                "Date": datetime.now().strftime("%A, %B %d, %Y"),
+                "TimeOfDay": datetime.now().strftime("%I:%M:%S %p")
+            })
+
+            for x, y in points:
+                ET.SubElement(gesture, "Point", X=str(x), Y=str(y), T="0")
+
+            tree = ET.ElementTree(gesture)
+            tree.write(path, encoding="utf-8", xml_declaration=True)
+
+
+    def load_templates_from_xml(self, directory):
+        print("Starte Import...")
+        if not os.path.exists(directory):
+            print(f"Ordner {directory} nicht gefunden. Keine Templates geladen")
+            return
+
+        for filename in os.listdir(directory):
+            if filename.endswith(".xml"):
+                path = os.path.join(directory, filename)
+                print(f"Versuche Datei zu laden: {filename}")
+                try:
+                    tree = ET.parse(path)
+                    root = tree.getroot()
+
+                    name = root.attrib.get("Name", "unknown")
+                    points = []
+                    for pt in root.findall("Point"):
+                        x = float(pt.attrib["X"])
+                        y = float(pt.attrib["Y"])
+                        points.append((x, y))
+
+                    if len(points) < 2:
+                        print(f"Datei {filename} enthält zu wenige Punkte, wird übersprungen.")
+                        continue
+
+                    if self.path_length(points) == 0:
+                        print(f"Datei {filename} enthält nur identische Punkte – wird übersprungen.")
+                        continue
+
+                    self.add_template(name, list(points))
+                    print(f"Template {filename} erfolgreich hinzugefügt.")
+
+                except Exception as e:
+                    print(f"Fehler beim Laden von {filename}: {e}")
