@@ -4,12 +4,22 @@ import pyglet
 from pyglet import shapes
 from pyglet.window import mouse
 from recognizer import OneDollarRecognizer
+from pointing_input import HandDetection
+import threading
 
 SUBJECT = "1"
 TRAINING_MODE = False
 TEMPLATES_PATH = "templates"
 RESAMPLE_POINTS = 64
 BB_SIZE = 250
+
+SHOW_CAM = True
+DRAWING_THRESHOLD = 30 # Max Abstand Zeigefinger zu Daumen zum Auslösen des Malens in px
+DEBUG = False
+
+NUM_HANDS = 1
+DETECTION_CONFIDENCE = 0.7
+TRACKING_CONFIDENCE = 0.7
 
 window = pyglet.window.Window(800, 600, "Gesture Recognizer")
 status_label = pyglet.text.Label("Statuslabel", font_size=16, x=10, y=window.height - 30)
@@ -21,6 +31,8 @@ template_name_input_label = pyglet.text.Label("Template name:", font_size=16, x=
 enough_points = False
 
 recognizer = OneDollarRecognizer(bb_size=BB_SIZE, resample_points=RESAMPLE_POINTS, templates_path=TEMPLATES_PATH, subject=SUBJECT)
+hand_detector = HandDetection(NUM_HANDS, DETECTION_CONFIDENCE, TRACKING_CONFIDENCE, DRAWING_THRESHOLD, SHOW_CAM, DEBUG)
+threading.Thread(target=hand_detector.run, daemon=True).start()
 
 
 @window.event
