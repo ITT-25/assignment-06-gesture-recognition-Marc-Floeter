@@ -1,4 +1,4 @@
-# $1 gesture recognizer 
+# $1 gesture recognizer (Aufgebaut nach Pseudocode auf Wobbrocks Website)
 import math, os
 import xml.etree.ElementTree as ET
 from datetime import datetime
@@ -18,20 +18,22 @@ class OneDollarRecognizer:
         self.angle_precision = math.radians(2)
         self.subject = subject
 
-        self.load_templates_from_xml(templates_path)
+        self.load_templates_from_xml(templates_path) # Beim Initialisieren gleich trainieren aus Gesten in XML Dateien
 
 
+    # Template zu den erkennbaren dieser Session hinzufügen
     def add_template(self, name, points):
         normalized = self.normalize(points)
         self.templates.append((name, normalized))
 
-
+    # Geste erkennen lassen
     def recognize(self, points):
         candidate = self.normalize(points)
-        max_possible_distance = 0.5 * math.sqrt(self.size ** 2 + self.size ** 2)
+        max_possible_distance = 0.5 * math.sqrt(self.size ** 2 + self.size ** 2) # Größtmöglicher Abstand zweier Punkte in der Anwendung
         current_min_distance = max_possible_distance
         best_template = None
 
+        # Am besten passende Template zu eingegebener Geste finden (geringster durchschnittlicher Abstand zur Template)
         for name, template_points in self.templates:
             d = self.distance_at_best_angle(candidate, template_points, self.min_angle, self.max_angle, self.angle_precision)
             if d < current_min_distance:
@@ -54,21 +56,22 @@ class OneDollarRecognizer:
         return points
 
 
+    # Geste auf n Punkte reduzieren
     def resample(self, points, n):
         path_len = self.path_length(points)
         if path_len == 0:
-            print("WARNUNG: Pfadlänge = 0 – Punkte vermutlich identisch.")
+            print("WARNUNG: Pfadlänge = 0 - Punkte vermutlich identisch.")
             return [points[0]] * n
 
         I = path_len / (n - 1)
         D = 0.0
         new_points = [points[0]]
-        curr_point = points[0]
+        current_point = points[0]
 
         i = 1
         while i < len(points):
             next_point = points[i]
-            d = self.distance(curr_point, next_point)
+            d = self.distance(current_point, next_point)
 
             if d == 0.0:
                 i += 1
@@ -76,15 +79,15 @@ class OneDollarRecognizer:
 
             if D + d >= I:
                 t = (I - D) / d
-                qx = curr_point[0] + t * (next_point[0] - curr_point[0])
-                qy = curr_point[1] + t * (next_point[1] - curr_point[1])
+                qx = current_point[0] + t * (next_point[0] - current_point[0])
+                qy = current_point[1] + t * (next_point[1] - current_point[1])
                 q = (qx, qy)
                 new_points.append(q)
-                curr_point = q
+                current_point = q
                 D = 0.0
             else:
                 D += d
-                curr_point = next_point
+                current_point = next_point
                 i += 1
 
         while len(new_points) < n:
@@ -144,6 +147,7 @@ class OneDollarRecognizer:
         x = sum(p[0] for p in points) / len(points)
         y = sum(p[1] for p in points) / len(points)
         return (x, y)
+
 
 #############################################################################################
 
@@ -244,12 +248,8 @@ class OneDollarRecognizer:
                         y = float(pt.attrib["Y"])
                         points.append((x, y))
 
-                    if len(points) < 2:
-                        print(f"Datei {filename} enthält zu wenige Punkte, wird übersprungen.")
-                        continue
-
-                    if self.path_length(points) == 0:
-                        print(f"Datei {filename} enthält nur identische Punkte – wird übersprungen.")
+                    if len(points) < self.n:
+                        print(f"Datei {filename} enthält zu wenige Punkte, wird übersprungen")
                         continue
 
                     self.add_template(name, list(points))
