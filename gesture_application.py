@@ -15,7 +15,6 @@ GESTURES = {
     "Lumos": "lumos",
     "Expelliarmus": "expelliarmus",
     "Alohomora": "alohomora",
-    "Reparo": "reparo",
     "Wingardium Leviosa": "leviosa"
 }
 SUBJECT = "Spieler"
